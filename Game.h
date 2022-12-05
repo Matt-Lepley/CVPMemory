@@ -20,13 +20,14 @@ public:
 	void clean();
 
 	SDL_Texture* LoadMedia(string path);
-	void loadFromRenderedText(string textureText, SDL_Texture* texture);
+	SDL_Texture* loadFromRenderedText(string textureText, int& width, int& height);
 
 	bool MouseCollision(int mX, int mY, SDL_Rect* rect);
 	void HandleButtonCollision();
 	void HandleCardCollision();
 	void Shuffle();
 	void CompareCards();
+	void ResetData();
 
 	void loop();
 	void handleEvents();
@@ -60,13 +61,18 @@ private:
 	SDL_Texture* matchCountTexture;
 	SDL_Texture* flipCountTexture;
 
+	string matchCountString;
+	string flipCountString;
+
 	SDL_Rect startBtnRect;
 	SDL_Rect quitBtnRect;
 	SDL_Rect gameoverRect;
 
 	int btnWidth = 300;
 	int btnHeight = 100;
+	int flipCountWidth = 0;
 	int matchCountWidth = 0;
+	int flipCountHeight = 0;
 	int matchCountHeight = 0;
 
 	vector<class Card*> cards;

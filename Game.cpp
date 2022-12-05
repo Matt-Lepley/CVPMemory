@@ -29,7 +29,7 @@ bool Game::init() {
 		return false;
 	}
 
-	font = TTF_OpenFont("Assets/bubbleFont.ttf", 64);
+	font = TTF_OpenFont("Assets/bubbleFont.ttf", 50);
 
 	isRunning = true;
 
@@ -53,10 +53,13 @@ bool Game::init() {
 	gameoverTexture = LoadMedia("Assets/gameover.png");
 	gameoverRect = {
 		SCREEN_WIDTH / 2 - 225,
-		SCREEN_HEIGHT - 120,
+		20,
 		450,
 		100
 	};
+
+	matchCountString = "Matches: 0";
+	flipCountString = "Flips: 0";
 
 	// Back Card Texture
 	cardBackTexture = LoadMedia("Assets/cardBack.png");
@@ -139,6 +142,20 @@ bool Game::MouseCollision(int mX, int mY, SDL_Rect* rect) {
 		mY <= rect->y + rect->h;
 }
 
+void Game::ResetData() {
+	Shuffle();
+
+	currentMatchCount = 0;
+	currentFlipCount = 0;
+	matchCountString = "Matches: 0";
+	flipCountString = "Flips: 0";
+
+	for (int i = 0; i < cards.size(); i++)
+	{
+		cards[i]->SetFlipped(false);
+	}
+}
+
 void Game::HandleButtonCollision() {
 	int mX, mY;
 
@@ -146,6 +163,10 @@ void Game::HandleButtonCollision() {
 	SDL_GetMouseState(&mX, &mY);
 
 	if (MouseCollision(mX, mY, &startBtnRect)) {
+		if (mState == StateManager::GAMEOVER) {
+			ResetData();
+		}
+
 		mState = StateManager::PLAYING;
 	}
 	else if (MouseCollision(mX, mY, &quitBtnRect)) {
@@ -180,6 +201,8 @@ void Game::HandleCardCollision() {
 			}
 		}
 	}
+
+	flipCountString = "Flips: " + to_string(currentFlipCount);
 }
 
 void Game::CompareCards() {
@@ -194,6 +217,8 @@ void Game::CompareCards() {
 		viewCardTimer = SDL_GetTicks();
 	}
 
+	matchCountString = "Matches: " + to_string(currentMatchCount);
+
 	if (SDL_GetTicks() - viewCardTimer >= viewCardDuration) {
 		if (!foundMatch) {
 			cardOne->SetFlipped(false);
@@ -205,7 +230,6 @@ void Game::CompareCards() {
 
 		if (currentMatchCount == allMatchCount) {
 			mState = StateManager::GAMEOVER;
-			cout << "YOU WIN WITH A TOTAL OF " << currentFlipCount << " FLIPS!" << endl;
 		}
 	}
 }
@@ -278,14 +302,6 @@ void Game::update() {
 	if (cardOne && cardTwo) {
 		CompareCards();
 	}
-
-	string text;
-	text = "Flips: " + to_string(currentFlipCount);
-	loadFromRenderedText(text, flipCountTexture);
-
-	string text2;
-	text2 = "Matches: " + to_string(currentMatchCount);
-	loadFromRenderedText(text2, matchCountTexture);
 }
 
 void Game::render() {
@@ -299,7 +315,7 @@ void Game::render() {
 	else if (mState == StateManager::PLAYING) {
 		for (int i = 0; i < cards.size(); i++)
 		{
-			if (cards[i]->GetFlipped()) {
+			if (!cards[i]->GetFlipped()) {
 				SDL_RenderCopy(renderer, cards[i]->GetTexture(), NULL, cards[i]->GetRect());
 			}
 			else {
@@ -307,11 +323,14 @@ void Game::render() {
 			}
 		}
 
-		SDL_Rect rect{ 10, SCREEN_HEIGHT - 80, matchCountWidth, matchCountHeight };
-		SDL_RenderCopy(renderer, matchCountTexture, NULL, &rect);
+		flipCountTexture = loadFromRenderedText(flipCountString, flipCountWidth, flipCountHeight);
+		matchCountTexture = loadFromRenderedText(matchCountString, matchCountWidth, matchCountHeight);
 
-		/*SDL_Rect rect2{ SCREEN_WIDTH / 2, SCREEN_HEIGHT - 80, matchCountWidth, matchCountHeight };
-		SDL_RenderCopy(renderer, matchCountTexture, NULL, &rect2);*/
+		SDL_Rect rect{ 10, SCREEN_HEIGHT - 80, flipCountWidth, flipCountHeight };
+		SDL_RenderCopy(renderer, flipCountTexture, NULL, &rect);
+
+		SDL_Rect rect2{ SCREEN_WIDTH - matchCountWidth - 10, SCREEN_HEIGHT - 80, matchCountWidth, matchCountHeight };
+		SDL_RenderCopy(renderer, matchCountTexture, NULL, &rect2);
 	}
 	else if (mState == StateManager::GAMEOVER) {
 		SDL_RenderCopy(renderer, gameoverTexture, NULL, &gameoverRect);
@@ -319,16 +338,22 @@ void Game::render() {
 		// Show stats
 		SDL_RenderCopy(renderer, startBtnTexture, NULL, &startBtnRect);
 		SDL_RenderCopy(renderer, quitBtnTexture, NULL, &quitBtnRect);
+
+		SDL_Rect rect{ 10, SCREEN_HEIGHT - 80, flipCountWidth, flipCountHeight };
+		SDL_RenderCopy(renderer, flipCountTexture, NULL, &rect);
+
+		SDL_Rect rect2{ SCREEN_WIDTH - matchCountWidth - 10, SCREEN_HEIGHT - 80, matchCountWidth, matchCountHeight };
+		SDL_RenderCopy(renderer, matchCountTexture, NULL, &rect2);
 	}
 
 	SDL_RenderPresent(renderer);
 }
 
-void Game::loadFromRenderedText(string textureText, SDL_Texture* texture)
+SDL_Texture* Game::loadFromRenderedText(string textureText, int &width, int& height)
 {
-	//Render text surface
 	SDL_Surface* textSurface;
-	SDL_Color color = { 255, 0, 0 };
+	SDL_Texture* texture = NULL;
+	SDL_Color color = { 0, 200, 0 };
 
 	textSurface = TTF_RenderText_Solid(font, textureText.c_str(), color);
 	if (textSurface == NULL)
@@ -346,11 +371,13 @@ void Game::loadFromRenderedText(string textureText, SDL_Texture* texture)
 		else
 		{
 			//Get image dimensions
-			matchCountWidth = textSurface->w;
-			matchCountHeight = textSurface->h;
+			width = textSurface->w;
+			height = textSurface->h;
 		}
 
 		//Get rid of old surface
 		SDL_FreeSurface(textSurface);
 	}
+
+	return texture;
 }
