@@ -2,7 +2,7 @@
 #include "Card.h"
 
 bool Game::init() {
-	if (SDL_Init(SDL_INIT_VIDEO) != 0) {
+	if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO) != 0) {
 		SDL_Log("Failed to initialize SDL: %s", SDL_GetError());
 		return false;
 	}
@@ -23,13 +23,41 @@ bool Game::init() {
 		SDL_Log("Failed to initialize IMG: %s", IMG_GetError());
 		return false;
 	}
+
 	if (TTF_Init() != 0)
 	{
 		SDL_Log("Failed to initialize TTF: %s", IMG_GetError());
 		return false;
 	}
 
+	if (Mix_OpenAudio(44100, MIX_DEFAULT_FORMAT, 2, 2048) < 0) {
+		SDL_Log("Failed to initialize MIX: %s", Mix_GetError());
+		return false;		
+	}
+
 	font = TTF_OpenFont("Assets/bubbleFont.ttf", 50);
+
+	matchSound = Mix_LoadWAV("Assets/match.wav");
+	if (matchSound == NULL)
+	{
+		cout << "Unable to load match sound: " << Mix_GetError() << endl;
+		return false;
+	}
+
+	noMatchSound = Mix_LoadWAV("Assets/noMatch.wav");
+	if (noMatchSound == NULL)
+	{
+		cout << "Unable to load noMatch sound: " << Mix_GetError() << endl;
+		return false;
+	}
+
+	gameoverSound = Mix_LoadWAV("Assets/gameover.wav");
+	if (gameoverSound == NULL)
+	{
+		cout << "Unable to load gameover sound: " << Mix_GetError() << endl;
+		return false;
+	}
+
 
 	isRunning = true;
 
@@ -106,6 +134,23 @@ bool Game::init() {
 }
 
 void Game::clean() {
+	SDL_DestroyTexture(cardBackTexture);
+	SDL_DestroyTexture(startBtnTexture);
+	SDL_DestroyTexture(quitBtnTexture);
+	SDL_DestroyTexture(gameoverTexture);
+	SDL_DestroyTexture(matchCountTexture);
+	SDL_DestroyTexture(flipCountTexture);
+	
+	TTF_CloseFont(font);
+
+	Mix_FreeChunk(matchSound);
+	Mix_FreeChunk(noMatchSound);
+	Mix_FreeChunk(gameoverSound);
+
+	IMG_Quit();
+	TTF_Quit();
+	Mix_Quit();
+
 	SDL_DestroyRenderer(renderer);
 	SDL_DestroyWindow(window);
 	SDL_Quit();
@@ -212,6 +257,8 @@ void Game::CompareCards() {
 		if (cardOne->GetValue() == cardTwo->GetValue()) {
 			foundMatch = true;
 			currentMatchCount += 1;
+
+			Mix_PlayChannel(-1, matchSound, 0);
 		}
 
 		viewCardTimer = SDL_GetTicks();
@@ -223,6 +270,8 @@ void Game::CompareCards() {
 		if (!foundMatch) {
 			cardOne->SetFlipped(false);
 			cardTwo->SetFlipped(false);
+
+			Mix_PlayChannel(-1, noMatchSound, 0);
 		}
 		cardOne = NULL;
 		cardTwo = NULL;
@@ -230,6 +279,8 @@ void Game::CompareCards() {
 
 		if (currentMatchCount == allMatchCount) {
 			mState = StateManager::GAMEOVER;
+
+			Mix_PlayChannel(-1, gameoverSound, 3);
 		}
 	}
 }
@@ -315,7 +366,7 @@ void Game::render() {
 	else if (mState == StateManager::PLAYING) {
 		for (int i = 0; i < cards.size(); i++)
 		{
-			if (!cards[i]->GetFlipped()) {
+			if (cards[i]->GetFlipped()) {
 				SDL_RenderCopy(renderer, cards[i]->GetTexture(), NULL, cards[i]->GetRect());
 			}
 			else {

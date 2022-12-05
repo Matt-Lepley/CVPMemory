@@ -8,6 +8,7 @@
 #include <SDL.h>
 #include <SDL_image.h>
 #include <SDL_ttf.h>
+#include <SDL_mixer.h>
 
 using namespace std;
 
@@ -41,7 +42,7 @@ private:
 
 	Uint32 ticksCount = 0;
 	int viewCardTimer = 0;
-	int viewCardDuration = 1000;
+	int viewCardDuration = 550;
 	bool foundMatch = false;
 	int currentMatchCount = 0;
 	int currentFlipCount = 0;
@@ -67,6 +68,10 @@ private:
 	SDL_Rect startBtnRect;
 	SDL_Rect quitBtnRect;
 	SDL_Rect gameoverRect;
+
+	Mix_Chunk* matchSound = NULL;
+	Mix_Chunk* noMatchSound = NULL;
+	Mix_Chunk* gameoverSound = NULL;
 
 	int btnWidth = 300;
 	int btnHeight = 100;
