@@ -3,11 +3,15 @@
 #include <iostream>
 #include <vector>
 #include <algorithm>
+#include <string>
 
 #include <SDL.h>
 #include <SDL_image.h>
+#include <SDL_ttf.h>
 
 using namespace std;
+
+enum class StateManager { MENU, PLAYING, GAMEOVER };
 
 class Game
 {
@@ -15,9 +19,12 @@ public:
 	bool init();
 	void clean();
 
-	//void handleBallCollision(Vector2 paddlePos, string side, Ball& Ball);
 	SDL_Texture* LoadMedia(string path);
-	void CheckCollision();
+	void loadFromRenderedText(string textureText, SDL_Texture* texture);
+
+	bool MouseCollision(int mX, int mY, SDL_Rect* rect);
+	void HandleButtonCollision();
+	void HandleCardCollision();
 	void Shuffle();
 	void CompareCards();
 
@@ -29,20 +36,40 @@ private:
 	bool isRunning;
 
 	const int SCREEN_WIDTH = 890;
-	const int SCREEN_HEIGHT = 650;
-	//const int mCardCount = 6;  <--- ???
+	const int SCREEN_HEIGHT = 750;
 
 	Uint32 ticksCount = 0;
 	int viewCardTimer = 0;
 	int viewCardDuration = 1000;
 	bool foundMatch = false;
+	int currentMatchCount = 0;
+	int currentFlipCount = 0;
+	int allMatchCount;
+
+	StateManager mState = StateManager::MENU;
 
 	SDL_Window* window;
 	SDL_Renderer* renderer;
+
+	TTF_Font* font = NULL;
+
 	SDL_Texture* cardBackTexture;
+	SDL_Texture* startBtnTexture;
+	SDL_Texture* quitBtnTexture;
+	SDL_Texture* gameoverTexture;
+	SDL_Texture* matchCountTexture;
+	SDL_Texture* flipCountTexture;
+
+	SDL_Rect startBtnRect;
+	SDL_Rect quitBtnRect;
+	SDL_Rect gameoverRect;
+
+	int btnWidth = 300;
+	int btnHeight = 100;
+	int matchCountWidth = 0;
+	int matchCountHeight = 0;
 
 	vector<class Card*> cards;
-	//vector<class Card*> activeCards;
 	Card* cardOne, *cardTwo = NULL;
 };
 

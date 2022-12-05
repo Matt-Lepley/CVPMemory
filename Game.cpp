@@ -7,7 +7,7 @@ bool Game::init() {
 		return false;
 	}
 
-	window = SDL_CreateWindow("PONG", 500, 200, SCREEN_WIDTH, SCREEN_HEIGHT, 0);
+	window = SDL_CreateWindow("CVP Memory", 300, 30, SCREEN_WIDTH, SCREEN_HEIGHT, 0);
 	if (!window) {
 		SDL_Log("Failed to create Window: %s", SDL_GetError());
 		return false;
@@ -23,11 +23,45 @@ bool Game::init() {
 		SDL_Log("Failed to initialize IMG: %s", IMG_GetError());
 		return false;
 	}
+	if (TTF_Init() != 0)
+	{
+		SDL_Log("Failed to initialize TTF: %s", IMG_GetError());
+		return false;
+	}
+
+	font = TTF_OpenFont("Assets/bubbleFont.ttf", 64);
 
 	isRunning = true;
 
+	// Buttons
+	startBtnTexture = LoadMedia("Assets/start.png");
+	startBtnRect = {
+		SCREEN_WIDTH / 2 - btnWidth / 2,
+		SCREEN_HEIGHT / 2 - btnHeight - 20,
+		btnWidth,
+		btnHeight
+	};
+
+	quitBtnTexture = LoadMedia("Assets/quit.png");
+	quitBtnRect = {
+		SCREEN_WIDTH / 2 - btnWidth / 2,
+		SCREEN_HEIGHT / 2,
+		btnWidth,
+		btnHeight
+	};
+
+	gameoverTexture = LoadMedia("Assets/gameover.png");
+	gameoverRect = {
+		SCREEN_WIDTH / 2 - 225,
+		SCREEN_HEIGHT - 120,
+		450,
+		100
+	};
+
+	// Back Card Texture
 	cardBackTexture = LoadMedia("Assets/cardBack.png");
 
+	// Load all cards and push on vector
 	cards.emplace_back(new Card(this, "Assets/1.png", 0));
 	cards.emplace_back(new Card(this, "Assets/1.png", 0));
 	cards.emplace_back(new Card(this, "Assets/2.png", 1));
@@ -60,6 +94,8 @@ bool Game::init() {
 	cards.emplace_back(new Card(this, "Assets/15.png", 14));
 	cards.emplace_back(new Card(this, "Assets/16.png", 15));
 	cards.emplace_back(new Card(this, "Assets/16.png", 15));
+
+	allMatchCount = cards.size() / 2;
 
 	Shuffle();
 	
@@ -96,7 +132,28 @@ SDL_Texture* Game::LoadMedia(string path) {
 	return texture;
 }
 
-void Game::CheckCollision() {
+bool Game::MouseCollision(int mX, int mY, SDL_Rect* rect) {
+	return mX >= rect->x &&
+		mX <= rect->x + rect->w &&
+		mY >= rect->y &&
+		mY <= rect->y + rect->h;
+}
+
+void Game::HandleButtonCollision() {
+	int mX, mY;
+
+	SDL_PumpEvents();
+	SDL_GetMouseState(&mX, &mY);
+
+	if (MouseCollision(mX, mY, &startBtnRect)) {
+		mState = StateManager::PLAYING;
+	}
+	else if (MouseCollision(mX, mY, &quitBtnRect)) {
+		isRunning = false;
+	}
+}
+
+void Game::HandleCardCollision() {
 	int mX, mY;
 
 	SDL_PumpEvents();
@@ -105,19 +162,21 @@ void Game::CheckCollision() {
 	for (int i = 0; i < cards.size(); i++)
 	{
 		SDL_Rect* rect = cards[i]->GetRect();
-		if (
-			mX >= rect->x &&
-			mX <= rect->x + rect->w &&
-			mY >= rect->y &&
-			mY <= rect->y + rect->h
-			) {
+		if (MouseCollision(mX, mY, rect)) {
+			// Need to skip iteration if card is already flipped
+			if (cards[i]->GetFlipped()) {
+				break;
+			}
+
 			if (cardOne == NULL) {
 				cardOne = cards[i];
 				cardOne->SetFlipped(true);
+				currentFlipCount += 1;
 			}
 			else {
 				cardTwo = cards[i];
 				cardTwo->SetFlipped(true);
+				currentFlipCount += 1;
 			}
 		}
 	}
@@ -128,8 +187,8 @@ void Game::CompareCards() {
 		foundMatch = false;
 
 		if (cardOne->GetValue() == cardTwo->GetValue()) {
-			cout << "MATCH" << endl;
 			foundMatch = true;
+			currentMatchCount += 1;
 		}
 
 		viewCardTimer = SDL_GetTicks();
@@ -143,6 +202,11 @@ void Game::CompareCards() {
 		cardOne = NULL;
 		cardTwo = NULL;
 		viewCardTimer = 0;
+
+		if (currentMatchCount == allMatchCount) {
+			mState = StateManager::GAMEOVER;
+			cout << "YOU WIN WITH A TOTAL OF " << currentFlipCount << " FLIPS!" << endl;
+		}
 	}
 }
 
@@ -169,14 +233,25 @@ void Game::handleEvents() {
 		if (event.type == SDL_QUIT) {
 			isRunning = false;
 		}
-		if (event.type == SDL_MOUSEBUTTONDOWN) {
-			if (event.button.button == SDL_BUTTON_LEFT) {
-				if (!cardOne || !cardTwo) {
-					CheckCollision();
-				}
-			}
-			if (event.button.button == SDL_BUTTON_RIGHT) {
+		if (event.type == SDL_KEYDOWN) {
+			if (event.key.keysym.sym == SDLK_s) {
 				Shuffle();
+			}
+		}
+		if (event.type == SDL_KEYDOWN) {
+			if (event.key.keysym.sym == SDLK_q) {
+				mState = StateManager::GAMEOVER;
+			}
+		}
+
+		if (event.type == SDL_MOUSEBUTTONDOWN) {
+			if (mState == StateManager::MENU || mState == StateManager::GAMEOVER) {
+				HandleButtonCollision();
+			}
+			else if (mState == StateManager::PLAYING) {
+				if (!cardOne || !cardTwo) {
+					HandleCardCollision();
+				}
 			}
 		}
 	}
@@ -203,21 +278,79 @@ void Game::update() {
 	if (cardOne && cardTwo) {
 		CompareCards();
 	}
+
+	string text;
+	text = "Flips: " + to_string(currentFlipCount);
+	loadFromRenderedText(text, flipCountTexture);
+
+	string text2;
+	text2 = "Matches: " + to_string(currentMatchCount);
+	loadFromRenderedText(text2, matchCountTexture);
 }
 
 void Game::render() {
 	SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
 	SDL_RenderClear(renderer);
 
-	for (int i = 0; i < cards.size(); i++)
-	{
-		if (cards[i]->GetFlipped()) {
-			SDL_RenderCopy(renderer, cards[i]->GetTexture(), NULL, cards[i]->GetRect());
+	if (mState == StateManager::MENU) {
+		SDL_RenderCopy(renderer, startBtnTexture, NULL, &startBtnRect);
+		SDL_RenderCopy(renderer, quitBtnTexture, NULL, &quitBtnRect);
+	}
+	else if (mState == StateManager::PLAYING) {
+		for (int i = 0; i < cards.size(); i++)
+		{
+			if (cards[i]->GetFlipped()) {
+				SDL_RenderCopy(renderer, cards[i]->GetTexture(), NULL, cards[i]->GetRect());
+			}
+			else {
+				SDL_RenderCopy(renderer, cardBackTexture, NULL, cards[i]->GetRect());
+			}
 		}
-		else {
-			SDL_RenderCopy(renderer, cardBackTexture, NULL, cards[i]->GetRect());
-		}
+
+		SDL_Rect rect{ 10, SCREEN_HEIGHT - 80, matchCountWidth, matchCountHeight };
+		SDL_RenderCopy(renderer, matchCountTexture, NULL, &rect);
+
+		/*SDL_Rect rect2{ SCREEN_WIDTH / 2, SCREEN_HEIGHT - 80, matchCountWidth, matchCountHeight };
+		SDL_RenderCopy(renderer, matchCountTexture, NULL, &rect2);*/
+	}
+	else if (mState == StateManager::GAMEOVER) {
+		SDL_RenderCopy(renderer, gameoverTexture, NULL, &gameoverRect);
+
+		// Show stats
+		SDL_RenderCopy(renderer, startBtnTexture, NULL, &startBtnRect);
+		SDL_RenderCopy(renderer, quitBtnTexture, NULL, &quitBtnRect);
 	}
 
 	SDL_RenderPresent(renderer);
+}
+
+void Game::loadFromRenderedText(string textureText, SDL_Texture* texture)
+{
+	//Render text surface
+	SDL_Surface* textSurface;
+	SDL_Color color = { 255, 0, 0 };
+
+	textSurface = TTF_RenderText_Solid(font, textureText.c_str(), color);
+	if (textSurface == NULL)
+	{
+		cout << "Failed to load font surface: " << TTF_GetError() << endl;
+	}
+	else
+	{
+		//Create texture from surface pixels
+		texture = SDL_CreateTextureFromSurface(renderer, textSurface);
+		if (texture == NULL)
+		{
+			cout << "Failed to render font texture: " << SDL_GetError() << endl;
+		}
+		else
+		{
+			//Get image dimensions
+			matchCountWidth = textSurface->w;
+			matchCountHeight = textSurface->h;
+		}
+
+		//Get rid of old surface
+		SDL_FreeSurface(textSurface);
+	}
 }
